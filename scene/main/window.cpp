@@ -866,6 +866,11 @@ void Window::_event_callback(DisplayServerEnums::WindowEvent p_event) {
 			// Ensure keeping the order of input events and window events when input events are buffered or accumulated.
 			Input::get_singleton()->flush_buffered_events();
 
+			// Buffered input callbacks can remove this window from the scene tree.
+			if (!is_inside_tree()) {
+				return;
+			}
+
 			Window *root = get_tree()->get_root();
 			if (!root->gui.windowmanager_window_over) {
 #ifdef DEV_ENABLED
