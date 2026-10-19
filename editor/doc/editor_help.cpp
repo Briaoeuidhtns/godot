@@ -3038,6 +3038,7 @@ void EditorHelp::_load_doc_thread(void *p_udata) {
 			callable_mp_static(&EditorHelp::load_script_doc_cache).call_deferred();
 		}
 		// Extensions' docs are not cached. Generate them now (on the main thread).
+		_extension_docs_pending.set_to(true);
 		callable_mp_static(&EditorHelp::_gen_extensions_docs).call_deferred();
 	} else {
 		// We have to go back to the main thread to start from scratch, bypassing any possibly existing cache.
@@ -3081,6 +3082,11 @@ void EditorHelp::_gen_doc_thread(void *p_udata) {
 }
 
 void EditorHelp::_gen_extensions_docs() {
+	if (!_extension_docs_pending.is_set()) {
+		return;
+	}
+	_extension_docs_pending.set_to(false);
+
 	doc->generate((DocTools::GENERATE_FLAG_SKIP_BASIC_TYPES | DocTools::GENERATE_FLAG_EXTENSION_CLASSES_ONLY));
 
 	// Append extra doc data, as it gets overridden by the generation step.
@@ -3364,6 +3370,9 @@ void EditorHelp::update_doc() {
 
 void EditorHelp::cleanup_doc() {
 	_wait_for_thread();
+	// The cache loader can queue extension generation after the last editor frame.
+	// Finish it while the documentation and extension classes are still alive.
+	_gen_extensions_docs();
 	memdelete(doc);
 	doc = nullptr;
 }
