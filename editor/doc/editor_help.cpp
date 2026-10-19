@@ -40,6 +40,7 @@
 #include "core/io/resource_saver.h"
 #include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
+#include "core/object/message_queue.h"
 #include "core/object/script_language.h"
 #include "core/os/keyboard.h"
 #include "core/os/os.h"
@@ -3099,6 +3100,10 @@ static void _load_script_doc_cache(bool p_changes) {
 }
 
 void EditorHelp::load_script_doc_cache() {
+	if (_script_docs_shutting_down) {
+		return;
+	}
+
 	if (!ProjectSettings::get_singleton()->is_project_loaded()) {
 		print_verbose("Skipping loading script doc cache since no project is open.");
 		return;
@@ -3173,6 +3178,10 @@ static void _regenerate_script_doc_cache(bool p_changes) {
 }
 
 void EditorHelp::regenerate_script_doc_cache() {
+	if (_script_docs_shutting_down) {
+		return;
+	}
+
 	if (EditorFileSystem::get_singleton()->is_scanning()) {
 		// Wait until EditorFileSystem scanning is complete to use updated filesystem structure.
 		EditorFileSystem::get_singleton()->connect(SNAME("sources_changed"), callable_mp_static(_regenerate_script_doc_cache), CONNECT_ONE_SHOT);
@@ -3181,6 +3190,7 @@ void EditorHelp::regenerate_script_doc_cache() {
 
 	_wait_for_thread(worker_thread);
 	_wait_for_thread(loader_thread);
+	_script_docs_regenerating.set();
 	loader_thread.start(_regen_script_doc_thread, EditorFileSystem::get_singleton()->get_filesystem());
 }
 
@@ -3191,6 +3201,7 @@ void EditorHelp::_finish_regen_script_doc_thread(void *p_udata) {
 	_script_docs_loaded.set();
 
 	OS::get_singleton()->benchmark_end_measure("EditorHelp", "Generate Script Documentation");
+	_script_docs_regenerating.clear();
 }
 
 // Runs on loader_thread since _reload_scripts_documentation calls ResourceLoader::load().
@@ -3366,6 +3377,16 @@ void EditorHelp::update_doc() {
 	ERR_FAIL_COND(!doc->class_list.has(edited_class));
 	ERR_FAIL_COND(!doc->class_list[edited_class].is_script_doc);
 	_update_doc();
+}
+
+void EditorHelp::finish_script_documentation() {
+	_script_docs_shutting_down = true;
+	// ResourceLoader may dispatch from the loader thread to the main queue. Keep
+	// servicing it while the filesystem is still alive rather than joining here.
+	while (_script_docs_regenerating.is_set()) {
+		MessageQueue::get_singleton()->flush();
+		OS::get_singleton()->delay_usec(1000);
+	}
 }
 
 void EditorHelp::cleanup_doc() {

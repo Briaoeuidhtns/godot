@@ -5222,6 +5222,14 @@ void Main::cleanup(bool p_force) {
 		ERR_FAIL_COND(!_start_success);
 	}
 
+#ifdef TOOLS_ENABLED
+	// Script documentation traverses the editor filesystem on its loader thread.
+	// Finish it while the editor tree and resource loaders are still available.
+	if (EditorNode::get_singleton() && EditorFileSystem::get_singleton()) {
+		EditorHelp::finish_script_documentation();
+	}
+#endif
+
 	// Printing in the usual way can become problematic during/after cleanup.
 	CoreGlobals::print_ready = false;
 

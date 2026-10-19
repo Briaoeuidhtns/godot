@@ -191,6 +191,8 @@ class EditorHelp : public VBoxContainer {
 	inline static Thread worker_thread;
 	inline static Thread loader_thread; // Only load scripts here to avoid deadlocking with main thread.
 	inline static SafeFlag _extension_docs_pending = SafeFlag(false);
+	inline static SafeFlag _script_docs_regenerating = SafeFlag(false);
+	inline static bool _script_docs_shutting_down = false; // Main thread only.
 
 	inline static SafeFlag _script_docs_loaded = SafeFlag(false);
 	inline static LocalVector<DocData::ClassDoc> _docs_to_add;
@@ -228,6 +230,7 @@ protected:
 public:
 	static void generate_doc(bool p_use_cache = true, bool p_use_script_cache = true);
 	static void cleanup_doc();
+	static void finish_script_documentation();
 	static void load_script_doc_cache();
 	static void regenerate_script_doc_cache();
 	static void save_script_doc_cache();
